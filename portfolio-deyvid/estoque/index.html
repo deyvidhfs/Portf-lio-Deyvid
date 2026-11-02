@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle de estoque — projeto de portfólio</title>
+<style>
+:root{--bg:#f4f7f7;--card:#fff;--ink:#14212b;--mut:#5f6f7b;--line:#dbe3e6;--acc:#0f766e;--accbg:#dff1ef;--bad:#b42318;--badbg:#fdeceb;--warn:#a85a00;--warnbg:#fff1dc;--good:#067647;--goodbg:#e2f6ea;--onacc:#fff;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1517;--card:#162024;--ink:#e6eef1;--mut:#9bacb5;--line:#27363c;--acc:#4fd1c5;--accbg:#12302f;--bad:#ff9a8f;--badbg:#3a1c19;--warn:#f5b45f;--warnbg:#38280f;--good:#6ddc9f;--goodbg:#10301f;--onacc:#06201e}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px}
+a{color:var(--acc)}
+h1{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;letter-spacing:-.02em}
+h2{font-size:18px;margin:28px 0 10px}
+.sub{color:var(--mut);margin:0 0 18px;max-width:62ch}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-size:28px;letter-spacing:-.02em}
+.stat span{color:var(--mut);font-size:14px}
+.stat.alert b{color:var(--warn)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 12px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;max-width:100%}
+.bar input{flex:1 1 200px}
+button{font:inherit;cursor:pointer;border-radius:8px;padding:9px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button.pri{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
+button.sm{padding:5px 10px;font-size:14px}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.tw{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px;min-width:640px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;color:var(--mut);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right}
+.tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:600}
+.ok{background:var(--goodbg);color:var(--good)}.low{background:var(--warnbg);color:var(--warn)}.zero{background:var(--badbg);color:var(--bad)}
+.acts{display:flex;gap:6px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:20px;width:min(420px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h3{margin:0 0 12px}
+dialog label{display:block;font-size:14px;color:var(--mut);margin-top:10px}
+dialog input,dialog select{display:block;width:100%;margin-top:4px}
+.err{color:var(--bad);font-size:14px;min-height:1.3em;margin:8px 0 0}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.foot{color:var(--mut);font-size:13.5px;margin-top:30px}
+.empty{padding:24px;text-align:center;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="../index.html">← Portfólio</a>
+  <h1>Controle de estoque</h1>
+  <p class="sub">Cadastre produtos, registre entradas, saídas e contagens de inventário, e acompanhe os itens abaixo do estoque mínimo. Os dados ficam salvos no seu navegador.</p>
+
+  <div class="stats">
+    <div class="stat"><b id="sP">0</b><span>Produtos</span></div>
+    <div class="stat"><b id="sU">0</b><span>Unidades em estoque</span></div>
+    <div class="stat alert"><b id="sB">0</b><span>Abaixo do mínimo</span></div>
+    <div class="stat"><b id="sM">0</b><span>Movimentações</span></div>
+  </div>
+
+  <div class="bar">
+    <input id="q" type="search" placeholder="Buscar por código, nome ou categoria" aria-label="Buscar produtos">
+    <select id="f" aria-label="Filtro"><option value="">Todos os produtos</option><option value="baixo">Abaixo do mínimo</option></select>
+    <button class="pri" id="novo" type="button">Novo produto</button>
+    <button id="csv" type="button">Exportar CSV</button>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th class="n">Saldo</th><th class="n">Mínimo</th><th>Situação</th><th>Ações</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+
+  <h2>Últimas movimentações</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th class="n">Quantidade</th><th class="n">Saldo após</th><th>Observação</th></tr></thead>
+    <tbody id="hist"></tbody>
+  </table></div>
+
+  <p class="foot">Projeto de portfólio com produtos e dados fictícios. <button class="sm" id="reset" type="button">Restaurar dados de exemplo</button></p>
+</div>
+
+<dialog id="dMov"><form id="fMov"><h3 id="mT"></h3>
+  <label><span id="mL">Quantidade</span><input id="mQ" type="number" min="0" step="1" required></label>
+  <label>Observação (opcional)<input id="mO" type="text" maxlength="60" placeholder="ex.: nota fiscal 1234, avaria, inventário"></label>
+  <p class="err" id="mE" role="alert"></p>
+  <div class="row"><button type="button" id="mC">Cancelar</button><button class="pri" type="submit">Confirmar</button></div>
+</form></dialog>
+
+<dialog id="dNew"><form id="fNew"><h3>Novo produto</h3>
+  <label>Código<input id="nC" required maxlength="12" placeholder="ex.: SH-009"></label>
+  <label>Nome<input id="nN" required maxlength="60"></label>
+  <label>Categoria<input id="nK" required maxlength="30" list="cats"></label>
+  <datalist id="cats"></datalist>
+  <label>Saldo inicial<input id="nS" type="number" min="0" step="1" value="0" required></label>
+  <label>Estoque mínimo<input id="nM" type="number" min="0" step="1" value="10" required></label>
+  <p class="err" id="nE" role="alert"></p>
+  <div class="row"><button type="button" id="nCx">Cancelar</button><button class="pri" type="submit">Cadastrar</button></div>
+</form></dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY = 'estoque-v1';
+const seed = () => ({prox: 9, produtos: [
+  {id:1, codigo:'SH-001', nome:'Shampoo Hidratação 300 ml', cat:'Cabelos', saldo:48, min:20},
+  {id:2, codigo:'CD-002', nome:'Condicionador Nutritivo 300 ml', cat:'Cabelos', saldo:15, min:20},
+  {id:3, codigo:'HC-003', nome:'Hidratante Corporal 200 ml', cat:'Corpo', saldo:62, min:25},
+  {id:4, codigo:'SB-004', nome:'Sabonete Líquido 250 ml', cat:'Corpo', saldo:0, min:15},
+  {id:5, codigo:'PF-005', nome:'Perfume Floral 50 ml', cat:'Perfumaria', saldo:9, min:10},
+  {id:6, codigo:'PF-006', nome:'Perfume Amadeirado 100 ml', cat:'Perfumaria', saldo:22, min:8},
+  {id:7, codigo:'BL-007', nome:'Batom Cremoso Nude', cat:'Maquiagem', saldo:37, min:12},
+  {id:8, codigo:'BS-008', nome:'Base Líquida Tom Médio', cat:'Maquiagem', saldo:11, min:12}
+], movs: []});
+let db = null;
+try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+if (!db || !Array.isArray(db.produtos)) db = seed();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} };
+const situacao = p => p.saldo === 0 ? ['zero', 'Sem estoque'] : p.saldo <= p.min ? ['low', 'Baixo'] : ['ok', 'OK'];
+const fdata = iso => new Date(iso).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+
+function render() {
+  const q = $('#q').value.trim().toLowerCase(), f = $('#f').value;
+  const lista = db.produtos.filter(p => (!q || (p.codigo + ' ' + p.nome + ' ' + p.cat).toLowerCase().includes(q)) && (f !== 'baixo' || p.saldo <= p.min));
+  $('#tb').innerHTML = lista.length ? lista.map(p => {
+    const [c, t] = situacao(p);
+    return `<tr><td>${esc(p.codigo)}</td><td>${esc(p.nome)}</td><td>${esc(p.cat)}</td><td class="n"><b>${p.saldo}</b></td><td class="n">${p.min}</td>
+      <td><span class="tag ${c}">${t}</span></td>
+      <td><div class="acts"><button class="sm" data-a="Entrada" data-id="${p.id}">Entrada</button><button class="sm" data-a="Saída" data-id="${p.id}">Saída</button><button class="sm" data-a="Contagem" data-id="${p.id}">Contagem</button></div></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">Nenhum produto encontrado.</td></tr>';
+  $('#sP').textContent = db.produtos.length;
+  $('#sU').textContent = db.produtos.reduce((a, p) => a + p.saldo, 0);
+  $('#sB').textContent = db.produtos.filter(p => p.saldo <= p.min).length;
+  $('#sM').textContent = db.movs.length;
+  $('#hist').innerHTML = db.movs.length ? db.movs.slice(0, 12).map(m =>
+    `<tr><td>${fdata(m.d)}</td><td>${esc(m.nome)}</td><td>${m.tipo}</td><td class="n">${m.tipo === 'Saída' ? '−' : m.tipo === 'Entrada' ? '+' : ''}${m.qtd}</td><td class="n">${m.apos}</td><td>${esc(m.obs || '—')}</td></tr>`
+  ).join('') : '<tr><td colspan="6" class="empty">Nenhuma movimentação registrada ainda.</td></tr>';
+  $('#cats').innerHTML = [...new Set(db.produtos.map(p => p.cat))].map(c => `<option value="${esc(c)}">`).join('');
+}
+
+let atual = null;
+$('#tb').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]');
+  if (!b) return;
+  const p = db.produtos.find(x => x.id === +b.dataset.id);
+  atual = {p, tipo: b.dataset.a};
+  $('#mT').textContent = `${atual.tipo} — ${p.nome}`;
+  $('#mL').textContent = atual.tipo === 'Contagem' ? `Quantidade contada (saldo atual: ${p.saldo})` : `Quantidade (saldo atual: ${p.saldo})`;
+  $('#mQ').value = ''; $('#mO').value = ''; $('#mE').textContent = '';
+  $('#dMov').showModal();
+});
+$('#mC').addEventListener('click', () => $('#dMov').close());
+$('#fMov').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = Number($('#mQ').value), {p, tipo} = atual;
+  if (!Number.isInteger(q) || q < 0 || (tipo !== 'Contagem' && q === 0)) { $('#mE').textContent = 'Informe uma quantidade inteira válida.'; return; }
+  if (tipo === 'Saída' && q > p.saldo) { $('#mE').textContent = `Saída maior que o saldo disponível (${p.saldo}).`; return; }
+  let qtd = q;
+  if (tipo === 'Entrada') p.saldo += q;
+  else if (tipo === 'Saída') p.saldo -= q;
+  else { qtd = p.saldo === q ? 0 : Math.abs(q - p.saldo); p.saldo = q; }
+  db.movs.unshift({d: new Date().toISOString(), id: p.id, nome: p.nome, tipo, qtd, apos: p.saldo, obs: $('#mO').value.trim()});
+  db.movs = db.movs.slice(0, 200);
+  save(); render(); $('#dMov').close();
+});
+
+$('#novo').addEventListener('click', () => { $('#fNew').reset(); $('#nE').textContent = ''; $('#dNew').showModal(); });
+$('#nCx').addEventListener('click', () => $('#dNew').close());
+$('#fNew').addEventListener('submit', e => {
+  e.preventDefault();
+  const codigo = $('#nC').value.trim().toUpperCase(), nome = $('#nN').value.trim(), cat = $('#nK').value.trim();
+  if (db.produtos.some(p => p.codigo === codigo)) { $('#nE').textContent = 'Já existe um produto com esse código.'; return; }
+  const saldo = Number($('#nS').value), min = Number($('#nM').value);
+  if (!codigo || !nome || !cat || !Number.isInteger(saldo) || !Number.isInteger(min) || saldo < 0 || min < 0) { $('#nE').textContent = 'Preencha todos os campos com valores válidos.'; return; }
+  const id = db.prox++;
+  db.produtos.push({id, codigo, nome, cat, saldo, min});
+  if (saldo > 0) db.movs.unshift({d: new Date().toISOString(), id, nome, tipo: 'Entrada', qtd: saldo, apos: saldo, obs: 'Saldo inicial'});
+  save(); render(); $('#dNew').close();
+});
+
+$('#csv').addEventListener('click', () => {
+  const linhas = [['Código', 'Produto', 'Categoria', 'Saldo', 'Mínimo', 'Situação'], ...db.produtos.map(p => [p.codigo, p.nome, p.cat, p.saldo, p.min, situacao(p)[1]])];
+  const txt = '\ufeff' + linhas.map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], {type: 'text/csv;charset=utf-8'}));
+  a.download = 'estoque.csv'; a.click(); URL.revokeObjectURL(a.href);
+});
+$('#reset').addEventListener('click', () => { if (confirm('Restaurar os dados de exemplo? As alterações feitas serão perdidas.')) { db = seed(); save(); render(); } });
+$('#q').addEventListener('input', render);
+$('#f').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
